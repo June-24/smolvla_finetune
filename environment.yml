@@ -1,0 +1,28 @@
+name: smolvla
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    # PyTorch with CUDA 12.1 (change cu121 → cu118 if you have CUDA 11.8)
+    - torch>=2.3.0
+    - torchvision>=0.18.0
+    # HuggingFace
+    - transformers>=4.47.0
+    - datasets>=3.0.0
+    - huggingface_hub>=0.26.0
+    - safetensors>=0.4.0
+    - accelerate>=1.0.0
+    - tokenizers
+    # Utilities
+    - einops
+    - Pillow
+    - numpy
+    - tqdm
+    - h5py
+    - pyarrow
+    - pandas

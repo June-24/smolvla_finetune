@@ -1,0 +1,36 @@
+# Data
+data/
+datasets/
+*.hdf5
+*.h5
+*.pkl
+*.npy
+*.npz
+
+# Training Checkpoints
+checkpoints/
+outputs/
+runs/
+logs/
+wandb/
+
+# Model weights
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+venv/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
