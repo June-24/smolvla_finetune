@@ -3,7 +3,7 @@ train.py
 ========
 Standalone finetuning of SmolVLAPolicy on LIBERO.
 
-NO lerobot training framework is used — this is a plain PyTorch training loop.
+NO lerobot dependencies — pure PyTorch training loop.
 
 Usage:
     python train.py \
@@ -28,9 +28,7 @@ import argparse
 import json
 import logging
 import math
-import os
 import random
-import sys
 import time
 from pathlib import Path
 
@@ -38,14 +36,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 
-# ── make our lerobot stubs importable ──────────────────────────────────────
-sys.path.insert(0, str(Path(__file__).parent))
-
+from config import FeatureType, PolicyFeature, SmolVLAConfig
 from dataset import LiberoDataset, make_splits
+from model import SmolVLAPolicy
 
 logging.basicConfig(
     level=logging.INFO,
@@ -87,10 +82,6 @@ def parse_args():
 
 def build_model(args):
     """Load SmolVLAPolicy with LIBERO-appropriate config."""
-    from lerobot.policies.smolvla.modeling_smolvla import SmolVLAPolicy
-    from lerobot.policies.smolvla.configuration_smolvla import SmolVLAConfig
-    from lerobot.configs.types import FeatureType, NormalizationMode, PolicyFeature
-
     # LIBERO: 8-dim state, 7-dim action, 2 cameras
     input_features = {
         "observation.state": PolicyFeature(

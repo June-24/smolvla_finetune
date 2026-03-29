@@ -24,18 +24,21 @@ def compute_stats(data_dir: str, out_path: Optional[str] = None):
     data_dir = Path(data_dir)
     out_path = Path(out_path) if out_path else data_dir / "norm_stats.json"
 
-    print(f"Loading {data_dir / 'data.parquet'} ...")
-    df = pd.read_parquet(data_dir / "data.parquet")
+    pq_path = data_dir / "data.parquet"
+    print(f"Loading {pq_path} (columns: action, observation.state only) ...")
+
+    # Only read the two small numeric columns — avoids loading image bytes into RAM
+    import pyarrow.parquet as pq
+    table = pq.read_table(str(pq_path), columns=["action", "observation.state"])
+    df = table.to_pandas()
 
     # ---- actions -------------------------------------------------------
-    action_cols = df["action"].tolist()
-    actions = np.array(action_cols, dtype=np.float32)   # (N, 7)
+    actions = np.array(df["action"].tolist(), dtype=np.float32)   # (N, 7)
     action_mean = actions.mean(axis=0).tolist()
     action_std  = actions.std(axis=0).tolist()
 
     # ---- states --------------------------------------------------------
-    state_cols = df["observation.state"].tolist()
-    states = np.array(state_cols, dtype=np.float32)     # (N, 8)
+    states = np.array(df["observation.state"].tolist(), dtype=np.float32)  # (N, 8)
     state_mean = states.mean(axis=0).tolist()
     state_std  = states.std(axis=0).tolist()
 
