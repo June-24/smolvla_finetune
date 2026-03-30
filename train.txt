@@ -1,0 +1,87 @@
+ Step 1 — Download (run each in a separate terminal)
+
+    cd "/mnt/c/Users/Moham/OneDrive/Desktop/Claude Projects/smolvla_finetune"
+    conda activate smolvla
+
+    # Terminal 1 (fastest, starts at episode 0)
+    python download_libero_full.py --tasks 0-9 --episodes 500 --out data/chunk_0to9
+
+    # Terminal 2
+    python download_libero_full.py --tasks 10-19 --episodes 500 --out data/chunk_10to19
+
+    # Terminal 3
+    python download_libero_full.py --tasks 20-29 --episodes 500 --out data/chunk_20to29
+
+    # Terminal 4 (slowest, has to stream past ~1500 episodes)
+    python download_libero_full.py --tasks 30-39 --episodes 500 --out data/chunk_30to39
+
+    Step 2 — Merge chunks
+
+    python - << 'EOF'
+    import pyarrow.parquet as pq, pyarrow as pa, json
+    from pathlib import Path
+
+    chunks = ["data/chunk_0to9","data/chunk_10to19","data/chunk_20to29","data/chunk_30to39"]
+    tables = [pq.read_table(f"{c}/data.parquet") for c in chunks if (Path(c)/"data.parquet").exists()]
+    merged = pa.concat_tables(tables)
+    Path("data/libero_full").mkdir(exist_ok=True)
+    pq.write_table(merged, "data/libero_full/data.parquet")
+
+    task_names = {}
+    for c in chunks:
+        tf = Path(c)/"task_names.json"
+        if tf.exists():
+            task_names.update(json.load(open(tf)))
+    json.dump(task_names, open("data/libero_full/task_names.json","w"), indent=2)
+    print(f"Merged {len(merged)} rows, {len(task_names)} tasks")
+    EOF
+
+    Step 3 — Normalize
+
+    python normalize.py --data data/libero_full
+
+    Step 4 — Eval pretrained (before finetuning)
+
+    python evaluate.py --checkpoint lerobot/smolvla_base --data data/libero_full --out results/pretrained_full.json
+
+    Step 5 — Finetune
+
+    python train.py \
+      --data data/libero_full \
+      --output checkpoints/run2 \
+      --from_pretrained lerobot/smolvla_base \
+      --steps 10000 \
+      --batch 4 \
+      --lr 1e-4 \
+      --warmup_steps 500 \
+      --save_every 2000 \
+      --val_every 2000
+
+    Step 6 — Eval finetuned (after)
+
+    python evaluate.py --checkpoint checkpoints/run2/final --data data/libero_full --out results/finetuned_full.json
+
+    ---
+    Time estimates per step:
+
+    ┌────────────────────┬──────────┐
+    │        Step        │   Time   │
+    ├────────────────────┼──────────┤
+    │ Download 0-9       │ ~30 min  │
+    ├────────────────────┼──────────┤
+    │ Download 10-19     │ ~60 min  │
+    ├────────────────────┼──────────┤
+    │ Download 20-29     │ ~90 min  │
+    ├────────────────────┼──────────┤
+    │ Download 30-39     │ ~2 hrs   │
+    ├────────────────────┼──────────┤
+    │ Merge + normalize  │ ~5 min   │
+    ├────────────────────┼──────────┤
+    │ Pretrained eval    │ ~15 min  │
+    ├────────────────────┼──────────┤
+    │ Training 10k steps │ ~2-3 hrs │
+    ├────────────────────┼──────────┤
+    │ Finetuned eval     │ ~15 min  │
+    └────────────────────┴──────────┘
+
+    Run the 4 downloads in parallel in 4 separate terminals — total wall time is limited by the slowest one (~2 hrs), not the sum.
