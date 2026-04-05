@@ -85,3 +85,36 @@
     └────────────────────┴──────────┘
 
     Run the 4 downloads in parallel in 4 separate terminals — total wall time is limited by the slowest one (~2 hrs), not the sum.
+
+    -----------------------------
+
+
+
+     Full Pipeline
+
+  # 1. Download dataset
+  python download_so100.py
+
+  # 2. Compute normalization stats (existing script works as-is)
+  python normalize.py --data data/so100_pickplace
+
+  # 3. Evaluate BEFORE finetuning (baseline)
+  python evaluate_so100.py \
+      --checkpoint lerobot/smolvla_base \
+      --data data/so100_pickplace \
+      --out results/so100_pretrained.json
+
+  # 4. Fine-tune
+  python train_so100.py \
+      --data data/so100_pickplace \
+      --output checkpoints/so100_run \
+      --steps 5000 --bf16
+
+  # 5. Evaluate AFTER finetuning
+  python evaluate_so100.py \
+      --checkpoint checkpoints/so100_run/final \
+      --data data/so100_pickplace \
+      --out results/so100_finetuned.json
+
+  # 6. Compare results
+  python compare_so100.py results/so100_pretrained.json results/so100_finetuned.json

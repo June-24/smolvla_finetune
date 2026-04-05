@@ -1,0 +1,30 @@
+========================================================================
+  Baseline   : lerobot/smolvla_base
+  Finetuned  : checkpoints/so100_run/final
+  Split      : val  (1870 samples)
+  action_dim : 6
+========================================================================
+
+  flow_loss
+    baseline  : 9020.435991
+    finetuned : 28.911731  ↓ 8991.524260  (-99.7%)
+
+  mean_action_mae
+    baseline  : 77.472075
+    finetuned : 7.616801  ↓ 69.855274  (-90.2%)
+
+  per_dim_mae    baseline   finetuned       delta
+  ------------------------------------------------
+    j1           22.9094      9.9036  ↓ 13.0058
+    j2          145.4887     10.8388  ↓ 134.6499
+    j3          142.8572      6.8871  ↓ 135.9701
+    j4           62.6167      6.4421  ↓ 56.1747
+    j5           81.4693      6.5908  ↓ 74.8785
+    grip          9.4912      5.0385  ↓ 4.4527
+
+========================================================================
+  Lower flow_loss and lower MAE = better.
+
+  Result: Fine-tuning improved both metrics.
+    flow_loss  reduced by 99.7%
+    action_mae reduced by 90.2%

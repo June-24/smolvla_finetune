@@ -476,7 +476,7 @@ class SmolVLMWithExpertModel(nn.Module):
         att_weights = torch.matmul(query_states, key_states.transpose(2, 3))
         att_weights *= head_dim ** -0.5
 
-        big_neg          = torch.finfo(torch.float32).min
+        big_neg          = torch.finfo(att_weights.dtype).min
         masked_weights   = torch.where(attention_mask[:, None, :, :].bool(), att_weights, big_neg)
         probs            = nn.functional.softmax(masked_weights, dim=-1)
         probs            = probs.to(dtype=value_states.dtype)
