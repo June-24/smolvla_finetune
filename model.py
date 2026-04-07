@@ -379,7 +379,38 @@ class VLAFlowMatching(nn.Module):
         suffix_out = suffix_out.to(dtype=torch.float32)
         v_t = self.action_out_proj(suffix_out)
 
-        return F.mse_loss(u_t, v_t, reduction="none")
+        # ── Base flow-matching loss ────────────────────────────────────
+        element_losses = F.mse_loss(u_t, v_t, reduction="none")
+
+        # ── Magnitude alignment loss (Fix 3) ──────────────────────────
+        # Penalises predicting velocity vectors with wrong L2 norm.
+        # This directly counteracts action-magnitude collapse that occurs
+        # when the model learns direction but shrinks magnitude toward zero.
+        # Controlled by config.mag_loss_weight (default 0 = off).
+        mag_loss_weight = getattr(self.config, "mag_loss_weight", 0.0)
+        if mag_loss_weight > 0.0:
+            u_mag = u_t.norm(dim=-1, keepdim=True)          # (B, T, 1)
+            v_mag = v_t.norm(dim=-1, keepdim=True)
+            mag_loss = F.mse_loss(v_mag, u_mag, reduction="none")  # (B, T, 1)
+            # broadcast over action dims so masking in SmolVLAPolicy still works
+            element_losses = element_losses + mag_loss_weight * mag_loss.expand_as(element_losses)
+
+        # ── Per-dimension loss weighting (Fix 4) ──────────────────────
+        # Upweight dimensions that are severely underestimated.
+        # Set config.action_dim_weights to a list of per-dim floats, e.g.
+        #   [1.0, 3.0, 3.0, 3.0, 3.0, 2.0]  for SO-100 (j2-j5 worst)
+        dim_weights = getattr(self.config, "action_dim_weights", None)
+        if dim_weights is not None:
+            w = torch.tensor(dim_weights, dtype=element_losses.dtype,
+                             device=element_losses.device)
+            # trim or pad to match max_action_dim
+            if w.shape[0] < element_losses.shape[-1]:
+                pad = torch.ones(element_losses.shape[-1] - w.shape[0],
+                                 dtype=w.dtype, device=w.device)
+                w = torch.cat([w, pad])
+            element_losses = element_losses * w[: element_losses.shape[-1]]
+
+        return element_losses
 
     # ── Inference ─────────────────────────────────────────────────────────
 

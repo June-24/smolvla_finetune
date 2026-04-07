@@ -84,7 +84,7 @@ def parse_args():
 # ── model loading ──────────────────────────────────────────────────────────
 
 def load_policy(checkpoint: str, action_dim: int, state_dim: int,
-                device: str) -> SmolVLAPolicy:
+                device: str, chunk_size: int = 50) -> SmolVLAPolicy:
     log.info(f"Loading checkpoint: {checkpoint}")
     policy = SmolVLAPolicy.from_pretrained(checkpoint)
 
@@ -103,12 +103,15 @@ def load_policy(checkpoint: str, action_dim: int, state_dim: int,
     policy.config.output_features = {
         "action": PolicyFeature(type=FeatureType.ACTION, shape=(action_dim,))
     }
+    # Sync chunk_size so embed_suffix att_masks length matches the DataLoader
+    policy.config.chunk_size     = chunk_size
+    policy.config.n_action_steps = chunk_size
 
     policy = policy.to(device)
     policy.eval()
 
     n_total = sum(p.numel() for p in policy.parameters())
-    log.info(f"Model loaded: {n_total/1e6:.1f}M parameters")
+    log.info(f"Model loaded: {n_total/1e6:.1f}M parameters  (chunk_size={chunk_size})")
     return policy
 
 
@@ -279,7 +282,7 @@ def main():
     # ── Model ──────────────────────────────────────────────────────────
     policy = load_policy(
         args.checkpoint, action_dim=action_dim, state_dim=state_dim,
-        device=device
+        device=device, chunk_size=args.chunk
     )
 
     # ── Evaluate ───────────────────────────────────────────────────────

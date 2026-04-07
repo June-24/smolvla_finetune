@@ -87,6 +87,19 @@ def parse_args():
                    help="Un-freeze full model (slower but potentially better)")
     p.add_argument("--bf16", action="store_true",
                    help="Use bfloat16 mixed precision (recommended on A100/H100)")
+
+    # ── Magnitude-collapse fixes ────────────────────────────────────────
+    p.add_argument("--num_steps", type=int, default=10,
+                   help="Flow-matching denoising steps at inference. "
+                        "Increase to 50 to fix magnitude underestimation on "
+                        "high-scale actions. (default: 10)")
+    p.add_argument("--mag_loss_weight", type=float, default=0.0,
+                   help="Weight for velocity-magnitude alignment loss. "
+                        "0=off (default). Try 0.1–0.5 if action magnitude "
+                        "bias < 0.5 after retraining with fixed norm_stats.")
+    p.add_argument("--action_dim_weights", type=str, default=None,
+                   help="Comma-separated per-dim loss weights, e.g. '1,3,3,3,3,2'. "
+                        "Upweights underestimated joints. None = uniform.")
     return p.parse_args()
 
 
@@ -111,6 +124,12 @@ def build_model(args, action_dim: int, state_dim: int):
         "action": PolicyFeature(type=FeatureType.ACTION, shape=(action_dim,))
     }
 
+    # Parse per-dim loss weights
+    dim_weights = None
+    if args.action_dim_weights:
+        dim_weights = [float(x) for x in args.action_dim_weights.split(",")]
+        log.info(f"Per-dim loss weights: {dim_weights}")
+
     if args.from_pretrained:
         log.info(f"Loading pretrained weights from {args.from_pretrained}")
         policy = SmolVLAPolicy.from_pretrained(args.from_pretrained)
@@ -131,6 +150,24 @@ def build_model(args, action_dim: int, state_dim: int):
             num_steps=10,
         )
         policy = SmolVLAPolicy(config)
+
+    # Sync chunk size — MUST be set before any forward pass.
+    # embed_suffix uses self.config.chunk_size for att_masks length,
+    # which must match the actual action tensor length from the DataLoader.
+    # If these differ (e.g. loaded checkpoint had chunk=50 but --chunk 20),
+    # make_att_2d_masks throws a size-mismatch RuntimeError.
+    policy.config.chunk_size     = args.chunk
+    policy.config.n_action_steps = args.chunk
+    log.info(f"Chunk size set to {args.chunk}")
+
+    # Apply magnitude-collapse fixes
+    policy.config.num_steps        = args.num_steps
+    policy.config.mag_loss_weight  = args.mag_loss_weight
+    policy.config.action_dim_weights = dim_weights
+    if args.num_steps != 10:
+        log.info(f"Denoising steps set to {args.num_steps}")
+    if args.mag_loss_weight > 0:
+        log.info(f"Magnitude alignment loss enabled (weight={args.mag_loss_weight})")
 
     # Freeze / unfreeze
     policy.config.train_expert_only = train_expert_only

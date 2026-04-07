@@ -94,6 +94,17 @@ class SmolVLAConfig:
     train_expert_only:     bool = True
     train_state_proj:      bool = True
 
+    # ── Loss modifications (magnitude collapse fixes) ─────────────────────
+    # Weight on velocity-magnitude MSE loss.  0 = off (default).
+    # Start at 0.1 and increase to 0.5 if magnitude bias is still < 0.5.
+    mag_loss_weight: float = 0.0
+
+    # Per-action-dimension loss weights.  None = uniform (default).
+    # Set based on observed magnitude bias: higher weight for underestimated dims.
+    # Example for SO-100 where j2-j5 are most collapsed:
+    #   [1.0, 3.0, 3.0, 3.0, 3.0, 2.0]
+    action_dim_weights: Optional[list] = None
+
     # ── Misc ──────────────────────────────────────────────────────────────
     device:       Optional[str] = None
     compile_model: bool = False
